@@ -39,7 +39,7 @@ class AdminAbsenceController extends Controller
     // ✅ Création de la notification
     Notification::create([
         'employe_id' => $absence->employe_id,
-        'titre' => "Mise à jour de votre absence",
+        'titre' => "Mise à jour de votre demande d'absence",
         'message' => "Votre demande d'absence du " . $absence->date_debut . " au " . $absence->date_fin . " a été " . strtolower($absence->statut_absence) . ".",
     ]);
 

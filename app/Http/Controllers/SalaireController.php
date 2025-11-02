@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Salaire;
 use App\Models\Employe;
 use App\Models\Presence;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 
 class SalaireController extends Controller
@@ -67,6 +68,15 @@ public function store(Request $request)
         'retenues_salaire' => $retenues,
         'salaire_net' => $salaire_net,
         'employe_id' => $validated['employe_id'],
+    ]);
+
+    //  Notification salaire
+    $employe = Employe::find($validated['employe_id']);
+
+    Notification::create([
+    'employe_id' => $validated['employe_id'],
+    'titre' => "Salaire du mois disponible",
+    'message' => "Bonjour " . $employe->nom_employe . ", votre salaire du mois de " . $validated['mois_salaire'] . " est maintenant prêt.",
     ]);
 
     return response()->json([

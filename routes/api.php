@@ -126,3 +126,20 @@ Route::get('/user/{id}/notifications', function($id) {
         ->orderBy('created_at', 'desc')
         ->get();
 });
+
+Route::delete('/notifications/{id}', [App\Http\Controllers\NotificationController::class, 'destroy']);
+
+// Nombre notifications non lues
+Route::get('/user/{id}/notifications/unread-count', function ($id) {
+    return \App\Models\Notification::where('employe_id', $id)
+        ->where('is_read', 0)
+        ->count();
+});
+
+Route::put('/user/{id}/notifications/mark-read', function($id) {
+    \App\Models\Notification::where('employe_id', $id)
+        ->where('is_read', 0)
+        ->update(['is_read' => 1]);
+
+    return response()->json(['message' => 'Notifications marquées comme lues']);
+});

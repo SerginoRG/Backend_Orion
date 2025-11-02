@@ -16,7 +16,8 @@ return new class extends Migration
         $table->unsignedBigInteger('employe_id');
         $table->string('titre');
         $table->string('message');
-        $table->boolean('is_read')->default(false);
+       $table->boolean('is_read')->default(0);
+
         $table->timestamps();
 
         $table->foreign('employe_id')
