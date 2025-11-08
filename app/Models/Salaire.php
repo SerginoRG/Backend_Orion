@@ -19,6 +19,9 @@ class Salaire extends Model
         'salaire_base',
         'primes_salaire',
         'retenues_salaire',
+        'cnaps',
+        'medical',
+        'irsa',
         'salaire_net',
         'employe_id',
     ];

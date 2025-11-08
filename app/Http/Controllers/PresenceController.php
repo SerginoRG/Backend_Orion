@@ -154,56 +154,81 @@ class PresenceController extends Controller
     }
 
     // Marquer les absents pour une période donnée
-    public function marquerAbsents($periode)
-    {
-        $date = Carbon::now()->toDateString();
+  public function marquerAbsents($periode)
+        {
+            $date = now()->toDateString();
+            $now = now();
 
-        $plages = [
-            'matin' => ['start' => '08:00', 'end' => '12:00'],
-            'apresmidi' => ['start' => '15:00', 'end' => '18:00']
-        ];
+            // Définir les plages horaires
+            $matinStart = Carbon::createFromTime(8, 0);
+            $matinEnd   = Carbon::createFromTime(12, 0);
 
-        if (!isset($plages[$periode])) {
-            return response()->json(['error' => 'Période invalide.'], 400);
-        }
+            $apremStart = Carbon::createFromTime(14, 0);
+            $apremEnd   = Carbon::createFromTime(18, 0);
 
-        $start = $plages[$periode]['start'];
-        $end = $plages[$periode]['end'];
-
-        $presentIds = Presence::whereDate('date_presence', $date)
-            ->where('periode', $periode)
-            ->pluck('employe_id');
-
-        $absents = Employe::whereNotIn('id_employe', $presentIds)->get();
-
-        foreach ($absents as $employe) {
-            $already = Presence::where('employe_id', $employe->id_employe)
-                ->whereDate('date_presence', $date)
-                ->where('statut_presence', 'Absent')
-                ->where('periode', $periode)
-                ->whereNull('heure_arrivee')
-                ->whereBetween('created_at', [
-                    Carbon::now()->startOfDay(),
-                    Carbon::now()->endOfDay()
-                ])
-                ->exists();
-
-            if (!$already) {
-                Presence::create([
-                    'date_presence' => $date,
-                    'heure_arrivee' => null,
-                    'heure_depart' => null,
-                    'statut_presence' => 'Absent',
-                    'employe_id' => $employe->id_employe,
-                    'periode' => $periode
-                ]);
+            // Vérifier période valide
+            if (!in_array($periode, ['matin', 'apresmidi'])) {
+                return response()->json(['error' => 'Période invalide'], 400);
             }
+
+            $employes = Employe::all();
+            $count = 0;
+
+            foreach ($employes as $emp) {
+
+                if ($periode === "matin") {
+
+                    // A-t-il pointé entre 8h00 et 12h00 ?
+                    $presenceExists = Presence::where('employe_id', $emp->id_employe)
+                        ->whereDate('date_presence', $date)
+                        ->where('periode', 'matin')
+                        ->whereBetween('heure_arrivee', [$matinStart, $matinEnd])
+                        ->exists();
+
+                    if (!$presenceExists) {
+                        Presence::firstOrCreate([
+                            'date_presence'   => $date,
+                            'employe_id'      => $emp->id_employe,
+                            'periode'         => 'matin',
+                        ], [
+                            'statut_presence' => 'Absent',
+                            'heure_arrivee'   => null,
+                            'heure_depart'    => null,
+                        ]);
+                        $count++;
+                    }
+                }
+
+                if ($periode === "apresmidi") {
+
+                    // A-t-il pointé entre 14h00 et 18h00 ?
+                    $presenceExists = Presence::where('employe_id', $emp->id_employe)
+                        ->whereDate('date_presence', $date)
+                        ->where('periode', 'apresmidi')
+                        ->whereBetween('heure_arrivee', [$apremStart, $apremEnd])
+                        ->exists();
+
+                    if (!$presenceExists) {
+                        Presence::firstOrCreate([
+                            'date_presence'   => $date,
+                            'employe_id'      => $emp->id_employe,
+                            'periode'         => 'apresmidi',
+                        ], [
+                            'statut_presence' => 'Absent',
+                            'heure_arrivee'   => null,
+                            'heure_depart'    => null,
+                        ]);
+                        $count++;
+                    }
+                }
+            }
+
+            return response()->json([
+                'message' => "Absents enregistrés.",
+                'periode' => $periode,
+                'nombre_absents' => $count,
+                'date' => $date
+            ], 200);
         }
 
-        return response()->json([
-            'message' => "Absents marqués pour la période : {$periode}",
-            'periode' => $periode,
-            'absents' => $absents
-        ]);
-    }
 }

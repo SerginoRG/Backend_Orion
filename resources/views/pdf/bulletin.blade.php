@@ -69,6 +69,18 @@
             <td>Retenues</td>
             <td>{{ number_format($salaire->retenues_salaire ?? 0, 2) }} Ar</td>
         </tr>
+         <tr>
+            <td>CNaPS</td>
+            <td>{{ number_format($salaire->cnaps ?? 0, 2) }} %</td>
+        </tr>
+         <tr>
+            <td>OSTIE</td>
+            <td>{{ number_format($salaire->medical ?? 0, 2) }} %</td>
+        </tr>
+        <tr>
+            <td>IRSA</td>
+            <td>{{ number_format($salaire->irsa ?? 0, 2) }} %</td>
+        </tr>
         <tr>
             <th>Salaire Net</th>
             <th>{{ number_format($salaire->salaire_net ?? 0, 2) }} Ar</th>

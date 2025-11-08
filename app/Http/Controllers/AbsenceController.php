@@ -55,4 +55,25 @@ class AbsenceController extends Controller
         $absences = Absence::where('employe_id', $id)->get();
         return response()->json($absences);
     }
+
+        public function destroy($id)
+        {
+            // Cherche l'absence par la clé primaire id_absence
+            $absence = Absence::where('id_absence', $id)->first();
+
+            if (!$absence) {
+                return response()->json(['message' => 'Demande non trouvée'], 404);
+            }
+
+            // Supprime le justificatif si existant
+            if ($absence->justificatif) {
+                \Storage::disk('public')->delete($absence->justificatif);
+            }
+
+            $absence->delete();
+
+            return response()->json(['message' => 'Demande supprimée avec succès']);
+        }
+
+
 }

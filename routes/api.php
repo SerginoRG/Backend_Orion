@@ -12,6 +12,8 @@ use App\Http\Controllers\AbsenceController;
 use App\Http\Controllers\SalaireController;
 use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\AdminAbsenceController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\SoldeCongeController;
 
 /*
 |--------------------------------------------------------------------------
@@ -112,7 +114,9 @@ Route::get('/bulletins/{id}/generate-pdf', [App\Http\Controllers\BulletinControl
 
 
 
-Route::get('/admin/marquer-absents/{periode}', [PresenceController::class, 'marquerAbsents']);
+
+Route::post('/admin/marquer-absents/{periode}', [PresenceController::class, 'marquerAbsents']);
+
 
 
 // Route pour afficher toutes les absences côté admin
@@ -143,3 +147,31 @@ Route::put('/user/{id}/notifications/mark-read', function($id) {
 
     return response()->json(['message' => 'Notifications marquées comme lues']);
 });
+
+
+Route::get('/dashboard/statistics', [DashboardController::class, 'getStatistics']);
+Route::get('/dashboard/presence-stats', [DashboardController::class, 'getPresenceStats']);
+Route::get('/dashboard/masse-salariale', [DashboardController::class, 'getMasseSalarialeParService']);
+
+
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Ajouter une absence
+
+    // Lister toutes les absences d'un employé
+    Route::get('/user/{id}/absences', [AbsenceController::class, 'showByEmploye']);
+
+  
+});
+
+Route::delete('/absences/{id}', [AbsenceController::class, 'destroy']);
+
+// Solde-conge
+Route::post('/solde-conge/create', [SoldeCongeController::class, 'store']);
+Route::get('/solde-conge/{id_employe}', [SoldeCongeController::class, 'getSoldeByEmploye']);
+// Supprimer un solde par son ID
+Route::delete('/solde-conge/{id}', [SoldeCongeController::class, 'destroy']);
+
+// Récupérer tous les soldes de congé (pour afficher dans le tableau)
+Route::get('/solde-conge', [SoldeCongeController::class, 'index']);

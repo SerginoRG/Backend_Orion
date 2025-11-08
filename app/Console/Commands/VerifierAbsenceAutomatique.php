@@ -3,10 +3,11 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Carbon\Carbon;
 use App\Models\Employe;
 use App\Models\Presence;
 use App\Models\Absence;
-use Carbon\Carbon;
+
 
 class VerifierAbsenceAutomatique extends Command
 {
@@ -67,4 +68,59 @@ class VerifierAbsenceAutomatique extends Command
 
         return Command::SUCCESS;
     }
+
+    public function marquerAbsents($periode)
+{
+    $date = now()->toDateString();
+
+    $matinStart = Carbon::createFromTime(8, 0);
+    $matinEnd   = Carbon::createFromTime(12, 0);
+
+    $apremStart = Carbon::createFromTime(15, 0);
+    $apremEnd   = Carbon::createFromTime(18, 0);
+
+    $employes = Employe::all();
+
+    foreach ($employes as $emp) {
+
+        if ($periode === "matin") {
+            $presenceExists = Presence::where('employe_id', $emp->id_employe)
+                ->whereDate('date_presence', $date)
+                ->whereBetween('heure_arrivee', [$matinStart, $matinEnd])
+                ->exists();
+
+            if (!$presenceExists) {
+                Absence::firstOrCreate([
+                    'employe_id' => $emp->id_employe,
+                    'date_absence' => $date,
+                    'periode' => 'matin',
+                ], [
+                    'motif' => 'Absence marquée manuellement (matin)',
+                ]);
+            }
+        }
+
+        if ($periode === "apresmidi") {
+            $presenceExists = Presence::where('employe_id', $emp->id_employe)
+                ->whereDate('date_presence', $date)
+                ->whereBetween('heure_arrivee', [$apremStart, $apremEnd])
+                ->exists();
+
+            if (!$presenceExists) {
+                Absence::firstOrCreate([
+                    'employe_id' => $emp->id_employe,
+                    'date_absence' => $date,
+                    'periode' => 'apresmidi',
+                ], [
+                    'motif' => 'Absence marquée manuellement (après-midi)',
+                ]);
+            }
+        }
+    }
+
+    return response()->json([
+        'message' => "Absences enregistrées pour la période : $periode",
+    ], 200);
+}
+
 }
