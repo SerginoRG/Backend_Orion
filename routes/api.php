@@ -14,6 +14,7 @@ use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\AdminAbsenceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SoldeCongeController;
+use App\Http\Controllers\ArticleContratController;
 
 /*
 |--------------------------------------------------------------------------
@@ -175,3 +176,30 @@ Route::delete('/solde-conge/{id}', [SoldeCongeController::class, 'destroy']);
 
 // Récupérer tous les soldes de congé (pour afficher dans le tableau)
 Route::get('/solde-conge', [SoldeCongeController::class, 'index']);
+
+
+// PDF Absence
+Route::get('/admin/absence/{id}/pdf', [AdminAbsenceController::class, 'generatePDF']);
+
+Route::get('/bulletins/employe/{id}', [BulletinController::class, 'getByEmploye']);
+Route::get('/bulletins/{id}/pdf', [BulletinController::class, 'genererPDF']);
+
+
+
+
+// GET - Récupérer tous les articles
+Route::get('/articles', [ArticleContratController::class, 'index']);
+
+// GET - Récupérer un article spécifique par ID
+Route::get('/articles/{id}', [ArticleContratController::class, 'show']);
+
+// POST - Créer un nouvel article
+Route::post('/articles', [ArticleContratController::class, 'store']);
+
+// PUT - Mettre à jour un article
+Route::put('/articles/{id}', [ArticleContratController::class, 'update']);
+
+// DELETE - Supprimer un article
+Route::delete('/articles/{id}', [ArticleContratController::class, 'destroy']);
+
+Route::get('contrats/{id}/pdf', [ContratController::class, 'generatePDF']);

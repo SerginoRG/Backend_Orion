@@ -17,6 +17,18 @@ class BulletinController extends Controller
         return response()->json($bulletins);
     }
 
+    public function salaire()
+{
+    return $this->belongsTo(Salaire::class, 'salaire_id', 'id_salaire');
+}
+
+public function employe()
+{
+    return $this->belongsTo(Employe::class, 'employe_id', 'id_employe');
+}
+
+
+
     // 🔹 Créer un bulletin
     public function store(Request $request)
     {
@@ -96,4 +108,16 @@ public function genererPDF($id)
         $bulletin->delete();
         return response()->json(['message' => 'Bulletin supprimé avec succès']);
     }
+
+    public function getByEmploye($id_employe)
+    {
+        $bulletins = Bulletin::with('salaire.employe')
+            ->whereHas('salaire', function ($query) use ($id_employe) {
+                $query->where('employe_id', $id_employe);
+            })
+            ->get();
+
+        return response()->json($bulletins);
+    }
+
 }

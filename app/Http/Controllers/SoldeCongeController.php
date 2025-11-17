@@ -56,9 +56,6 @@ class SoldeCongeController extends Controller
             'jours_acquis' => 30,
             'jours_consommes' => 0,
             'jours_restants' => 30,
-            'jours_permission_max' => 3,
-            'jours_permission_utilises' => 0,
-            'jours_permission_restants' => 3,
             'employe_id' => $request->id_employe,
         ]);
 

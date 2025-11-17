@@ -24,7 +24,8 @@ class PresenceController extends Controller
         $heure = $now->format('H:i');
 
         // Déterminer la période
-        $periode = $now->hour < 12 ? 'matin' : 'apresmidi';
+           // ✅ Correction période (matin jusqu'à 14h)
+        $periode = $now->hour < 14 ? 'matin' : 'apresmidi';
 
         // Déterminer le statut
         if ($periode === 'matin') {
@@ -88,7 +89,9 @@ class PresenceController extends Controller
         $now = Carbon::now();
         $date = $now->toDateString();
         $heure = $now->format('H:i');
-        $periode = $now->hour < 12 ? 'matin' : 'apresmidi';
+       // ✅ Correction ici
+       $periode = $now->hour < 14 ? 'matin' : 'apresmidi';
+
 
         // Récupère la présence du jour pour cette période sans départ
         $presence = Presence::where('employe_id', $request->employe_id)

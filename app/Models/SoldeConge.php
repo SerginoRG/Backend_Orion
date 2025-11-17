@@ -18,9 +18,6 @@ class SoldeConge extends Model
         'jours_acquis',
         'jours_consommes',
         'jours_restants',
-        'jours_permission_max',
-        'jours_permission_utilises',
-        'jours_permission_restants',
         'employe_id',
     ];
     public function employe()

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Contrat;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\ArticleContrat;
 
 class ContratController extends Controller
 {
@@ -44,6 +46,21 @@ class ContratController extends Controller
             return response()->json(null, 200); // Aucun contrat
         }
         return response()->json($contrat, 200);
+    }
+
+    public function generatePDF($id)
+    {
+        $contrat = Contrat::with('employe')->findOrFail($id);
+
+        // Charger tous les articles du contrat
+        $articles = ArticleContrat::all();
+
+        $pdf = Pdf::loadView('pdf.contrat', [
+            'contrat' => $contrat,
+            'articles' => $articles
+        ]);
+
+        return $pdf->download('contrat_'.$contrat->id_contrat.'.pdf');
     }
 
 }
