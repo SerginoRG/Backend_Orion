@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Utilisateur;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Models\SoldeConge;
+
 
 class UtilisateurController extends Controller
 {
@@ -117,32 +119,46 @@ class UtilisateurController extends Controller
 
     
 
-    public function profil($id)
-        {
-            $user = \App\Models\Utilisateur::with(['employe.service'])
-                ->find($id);
+   public function profil($id)
+{
+    $user = \App\Models\Utilisateur::with(['employe.service'])
+        ->find($id);
 
-            if (!$user) {
-                return response()->json(['message' => 'Utilisateur non trouvé'], 404);
-            }
+    if (!$user) {
+        return response()->json(['message' => 'Utilisateur non trouvé'], 404);
+    }
 
-            return response()->json([
-                'id_utilisateur' => $user->id_utilisateur,
-                'nom_utilisateur' => $user->nom_utilisateur,
-                'email' => $user->employe->email_employe ?? null,
-                'photo' => $user->employe->photo_profil_employe
-                    ? asset('storage/' . $user->employe->photo_profil_employe)
-                    : null,
-                'employe' => [
-                    'matricule' => $user->employe->matricule_employe,
-                    'nom' => $user->employe->nom_employe,
-                    'prenom' => $user->employe->prenom_employe,
-                    'poste' => $user->employe->poste_employe,
-                    'date_embauche' => $user->employe->date_embauche_employe,
-                    'salaire_base' => $user->employe->salaire_base_employe,
-                    'service' => $user->employe->service->nom_service ?? 'Non défini',
-                ]
-            ]);
-        }
+    // 🔥 Récupération du solde de congé pour l'année en cours
+    $annee = date('Y');
+    $solde = SoldeConge::where('employe_id', $user->employe->id_employe)
+        ->where('annee', $annee)
+        ->first();
+
+    return response()->json([
+        'id_utilisateur' => $user->id_utilisateur,
+        'nom_utilisateur' => $user->nom_utilisateur,
+        'email' => $user->employe->email_employe ?? null,
+        'photo' => $user->employe->photo_profil_employe
+            ? asset('storage/' . $user->employe->photo_profil_employe)
+            : null,
+        'employe' => [
+            'matricule' => $user->employe->matricule_employe,
+            'nom' => $user->employe->nom_employe,
+            'prenom' => $user->employe->prenom_employe,
+            'poste' => $user->employe->poste_employe,
+            'date_embauche' => $user->employe->date_embauche_employe,
+            'salaire_base' => $user->employe->salaire_base_employe,
+            'service' => $user->employe->service->nom_service ?? 'Non défini',
+        ],
+        // 🔥 Ajouter le solde
+        'solde_conge' => $solde ? [
+            'annee' => $solde->annee,
+            'jours_acquis' => $solde->jours_acquis,
+            'jours_consommes' => $solde->jours_consommes,
+            'jours_restants' => $solde->jours_restants,
+        ] : null,
+    ]);
+}
+
 
 }
