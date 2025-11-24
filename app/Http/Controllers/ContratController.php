@@ -14,11 +14,20 @@ class ContratController extends Controller
         return Contrat::with('employe')->get();
     }
 
-    public function store(Request $request)
+   public function store(Request $request)
     {
-        $contrat = Contrat::create($request->all());
+        $data = $request->all();
+
+        // Si le contrat est CDI → date_fin_contrat = null
+        if (strtoupper($data['type_contrat']) === 'CDI') {
+            $data['date_fin_contrat'] = null;
+        }
+
+        $contrat = Contrat::create($data);
+
         return Contrat::with('employe')->find($contrat->id_contrat);
     }
+
 
     public function show($id)
     {
@@ -28,9 +37,18 @@ class ContratController extends Controller
     public function update(Request $request, $id)
     {
         $contrat = Contrat::find($id);
-        $contrat->update($request->all());
+
+        $data = $request->all();
+
+        if (isset($data['type_contrat']) && strtoupper($data['type_contrat']) === 'CDI') {
+            $data['date_fin_contrat'] = null;
+        }
+
+        $contrat->update($data);
+
         return Contrat::with('employe')->find($id);
     }
+
 
     public function destroy($id)
     {
