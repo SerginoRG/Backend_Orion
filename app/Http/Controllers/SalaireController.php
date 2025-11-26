@@ -5,11 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\Salaire;
 use App\Models\Employe;
 use App\Models\Presence;
+use App\Models\Absence;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 
 class SalaireController extends Controller
 {
+    // Liste des motifs d'absence qui ne génèrent PAS de retenue
+    private $motifsAutorises = [
+        'Congé',
+        'Maladie',
+        'Permission',
+        'Congé maternité',
+        'Congé paternité',
+        'Congé pour décès'
+    ];
+
     // Liste des salaires
     public function index()
     {
@@ -50,7 +61,7 @@ class SalaireController extends Controller
         $primes = $validated['primes_salaire'] ?? 0;
         $retenues = $validated['retenues_salaire'] ?? 0;
 
-        // ⚠️ NE recalculer que si calcul_auto_retenues ET que retenues non fourni
+        //  NE recalculer que si calcul_auto_retenues ET que retenues non fourni
         if ($request->input('calcul_auto_retenues', false) && $retenues == 0) {
             $retenues = $this->calculerRetenues(
                 $validated['employe_id'],
@@ -64,7 +75,7 @@ class SalaireController extends Controller
         $salaireBrut = $validated['salaire_base'] + $primes;
 
         // Utiliser les valeurs manuelles si fournies, sinon calculer automatiquement
-       $cnaps   = $validated['cnaps'] ?? 0;
+        $cnaps   = $validated['cnaps'] ?? 0;
         $medical = $validated['medical'] ?? 0;
         $irsa    = $validated['irsa'] ?? 0;
 
@@ -97,37 +108,74 @@ class SalaireController extends Controller
         ], 201);
     }
 
-    
-
-
     // Calculer les retenues (absences/retards basé sur les présences)
     private function calculerRetenues($employe_id, $mois, $annee, $salaire_base)
     {
         $moisNum = $this->convertirMoisEnNumero($mois);
+        if (!$moisNum) return 0;
 
-        if (!$moisNum) {
-            return 0;
-        }
-
-        // Utiliser la table presences comme dans calculerRetenuesPreview
+        // Récupérer les présences du mois
         $presences = Presence::where('employe_id', $employe_id)
             ->whereYear('date_presence', $annee)
             ->whereMonth('date_presence', $moisNum)
             ->get();
 
-        $nbAbsences = $presences->where('statut_presence', 'Absent')->count();
-        $nbRetards = $presences->where('statut_presence', 'En retard')->count();
+        // Récupérer les absences autorisées du mois
+        $absencesAutorisees = Absence::where('employe_id', $employe_id)
+            ->where('statut_absence', 'Validée')
+            ->whereIn('motif_absence', $this->motifsAutorises)
+            ->where(function($query) use ($annee, $moisNum) {
+                $query->whereYear('date_debut', $annee)
+                      ->whereMonth('date_debut', $moisNum);
+            })
+            ->orWhere(function($query) use ($annee, $moisNum) {
+                $query->whereYear('date_fin', $annee)
+                      ->whereMonth('date_fin', $moisNum);
+            })
+            ->get();
 
-        $tauxJournalier = $salaire_base / 22;
-        $retenueParAbsence = $tauxJournalier;
-        $retenueParRetard = $tauxJournalier * 0.25;
+        // Créer une liste des dates avec absences justifiées
+        $datesJustifiees = [];
+        foreach ($absencesAutorisees as $absence) {
+            $dateDebut = new \DateTime($absence->date_debut);
+            $dateFin = new \DateTime($absence->date_fin);
+            
+            while ($dateDebut <= $dateFin) {
+                $datesJustifiees[] = $dateDebut->format('Y-m-d');
+                $dateDebut->modify('+1 day');
+            }
+        }
 
-        $totalRetenues = ($nbAbsences * $retenueParAbsence) + ($nbRetards * $retenueParRetard);
+        $heuresAbsence = 0;
+        $heuresRetard = 0;
+
+        foreach ($presences as $p) {
+            $datePresence = date('Y-m-d', strtotime($p->date_presence));
+            
+            // Vérifier si cette absence est justifiée
+            $estJustifiee = in_array($datePresence, $datesJustifiees);
+
+            // Chaque période (matin ou après-midi) = 4 heures
+            if ($p->statut_presence === 'Absent' && !$estJustifiee) {
+                $heuresAbsence += 4; // 4h par période absente NON justifiée
+            }
+
+            if ($p->statut_presence === 'En retard') {
+                // Pénalité fixe de 1h par retard
+                $heuresRetard += 1;
+            }
+        }
+
+        // Calcul du taux horaire basé sur 22 jours * 8 heures
+        $tauxHoraire = $salaire_base / (22 * 8);
+
+        // Retenue finale
+        $totalRetenues = ($heuresAbsence + $heuresRetard) * $tauxHoraire;
 
         return round($totalRetenues, 2);
     }
 
-    // Preview des retenues
+    // Preview des retenues avec détails
     public function calculerRetenuesPreview(Request $request)
     {
         $request->validate([
@@ -143,28 +191,131 @@ class SalaireController extends Controller
             return response()->json(['error' => 'Mois invalide'], 400);
         }
 
+        // Récupérer les présences
         $presences = Presence::where('employe_id', $request->employe_id)
             ->whereYear('date_presence', $request->annee_salaire)
             ->whereMonth('date_presence', $moisNum)
             ->get();
 
-        $nbAbsences = $presences->where('statut_presence', 'Absent')->count();
-        $nbRetards = $presences->where('statut_presence', 'En retard')->count();
+        // Récupérer les absences autorisées
+        $absencesAutorisees = Absence::where('employe_id', $request->employe_id)
+            ->where('statut_absence', 'Validée')
+            ->whereIn('motif_absence', $this->motifsAutorises)
+            ->where(function($query) use ($request, $moisNum) {
+                $query->whereYear('date_debut', $request->annee_salaire)
+                      ->whereMonth('date_debut', $moisNum);
+            })
+            ->orWhere(function($query) use ($request, $moisNum) {
+                $query->whereYear('date_fin', $request->annee_salaire)
+                      ->whereMonth('date_fin', $moisNum);
+            })
+            ->get();
 
-        $tauxJournalier = $request->salaire_base / 22;
-        $retenueParAbsence = $tauxJournalier;
-        $retenueParRetard = $tauxJournalier * 0.25;
+        // Créer une liste des dates avec absences justifiées
+        $datesJustifiees = [];
+        foreach ($absencesAutorisees as $absence) {
+            $dateDebut = new \DateTime($absence->date_debut);
+            $dateFin = new \DateTime($absence->date_fin);
+            
+            while ($dateDebut <= $dateFin) {
+                $datesJustifiees[] = $dateDebut->format('Y-m-d');
+                $dateDebut->modify('+1 day');
+            }
+        }
 
-        $totalRetenues = ($nbAbsences * $retenueParAbsence) + ($nbRetards * $retenueParRetard);
+        // Comptage avec distinction justifié/non justifié
+        $nbAbsencesMatin = 0;
+        $nbAbsencesApresMidi = 0;
+        $nbAbsencesMatinJustifiees = 0;
+        $nbAbsencesApresMidiJustifiees = 0;
+        $nbRetards = 0;
+
+        foreach ($presences as $p) {
+            $datePresence = date('Y-m-d', strtotime($p->date_presence));
+            $estJustifiee = in_array($datePresence, $datesJustifiees);
+
+            if ($p->statut_presence === 'Absent') {
+                if ($p->periode === 'matin') {
+                    $nbAbsencesMatin++;
+                    if ($estJustifiee) $nbAbsencesMatinJustifiees++;
+                } elseif ($p->periode === 'apresmidi') {
+                    $nbAbsencesApresMidi++;
+                    if ($estJustifiee) $nbAbsencesApresMidiJustifiees++;
+                }
+            }
+
+            if ($p->statut_presence === 'En retard') {
+                $nbRetards++;
+            }
+        }
+
+        // Calcul des absences NON justifiées seulement
+        $nbAbsencesMatinNonJustifiees = $nbAbsencesMatin - $nbAbsencesMatinJustifiees;
+        $nbAbsencesApresMidiNonJustifiees = $nbAbsencesApresMidi - $nbAbsencesApresMidiJustifiees;
+
+        // Calcul des heures (seulement les non justifiées)
+        $heuresAbsence = ($nbAbsencesMatinNonJustifiees + $nbAbsencesApresMidiNonJustifiees) * 4;
+        $heuresRetard = $nbRetards * 1;
+
+        // Calcul du taux horaire
+        $tauxHoraire = $request->salaire_base / (22 * 8);
+
+        // Calcul des retenues
+        $retenueAbsences = $heuresAbsence * $tauxHoraire;
+        $retenueRetards = $heuresRetard * $tauxHoraire;
+        $totalRetenues = $retenueAbsences + $retenueRetards;
 
         return response()->json([
-            'nb_absences' => $nbAbsences,
+            'nb_absences_matin' => $nbAbsencesMatin,
+            'nb_absences_apresmidi' => $nbAbsencesApresMidi,
+            'nb_absences_matin_justifiees' => $nbAbsencesMatinJustifiees,
+            'nb_absences_apresmidi_justifiees' => $nbAbsencesApresMidiJustifiees,
+            'nb_absences_matin_non_justifiees' => $nbAbsencesMatinNonJustifiees,
+            'nb_absences_apresmidi_non_justifiees' => $nbAbsencesApresMidiNonJustifiees,
+            'nb_absences_total' => $nbAbsencesMatin + $nbAbsencesApresMidi,
+            'nb_absences_justifiees_total' => $nbAbsencesMatinJustifiees + $nbAbsencesApresMidiJustifiees,
+            'heures_absence' => $heuresAbsence,
             'nb_retards' => $nbRetards,
-            'retenue_par_absence' => round($retenueParAbsence, 2),
-            'retenue_par_retard' => round($retenueParRetard, 2),
+            'heures_retard' => $heuresRetard,
+            'taux_horaire' => round($tauxHoraire, 2),
+            'retenue_absences' => round($retenueAbsences, 2),
+            'retenue_retards' => round($retenueRetards, 2),
             'total_retenues' => round($totalRetenues, 2),
-            'details_presences' => $presences
+            'absences_justifiees' => $absencesAutorisees->map(function($a) {
+                return [
+                    'date_debut' => $a->date_debut,
+                    'date_fin' => $a->date_fin,
+                    'motif' => $a->motif_absence,
+                    'message' => $a->message
+                ];
+            }),
+            'details_presences' => $presences->map(function($p) use ($datesJustifiees) {
+                $datePresence = date('Y-m-d', strtotime($p->date_presence));
+                return [
+                    'date' => $p->date_presence,
+                    'periode' => $p->periode,
+                    'statut' => $p->statut_presence,
+                    'heure_arrivee' => $p->heure_arrivee,
+                    'heure_depart' => $p->heure_depart,
+                    'justifiee' => in_array($datePresence, $datesJustifiees)
+                ];
+            })
         ]);
+    }
+
+    // Optionnel : Fonction pour calculer les heures de retard exactes
+    private function calculerHeuresRetard($heureArrivee, $heureTheorique)
+    {
+        try {
+            $arrivee = new \DateTime($heureArrivee);
+            $theorique = new \DateTime($heureTheorique);
+            $diff = $arrivee->diff($theorique);
+            
+            // Convertir en heures décimales
+            return $diff->h + ($diff->i / 60);
+        } catch (\Exception $e) {
+            return 1; // Valeur par défaut en cas d'erreur
+        }
     }
 
     // Convertir mois en numéro
@@ -217,7 +368,7 @@ class SalaireController extends Controller
             $retenues = $validated['retenues_salaire'] ?? $salaire->retenues_salaire;
             
             $salaireBrut = $base + $primes;
-           $validated['cnaps'] = $validated['cnaps'] ?? $salaire->cnaps;
+            $validated['cnaps'] = $validated['cnaps'] ?? $salaire->cnaps;
             $validated['medical'] = $validated['medical'] ?? $salaire->medical;
             $validated['irsa'] = $validated['irsa'] ?? $salaire->irsa;
 
@@ -227,7 +378,6 @@ class SalaireController extends Controller
             $retenues = $validated['retenues_salaire'] ?? $salaire->retenues_salaire;
 
             $validated['salaire_net'] = $base + $primes - $validated['cnaps'] - $validated['medical'] - $validated['irsa'] - $retenues;
-
         }
 
         $salaire->update($validated);
